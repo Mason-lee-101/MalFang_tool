@@ -1,6 +1,6 @@
 # Defang File And Folder Tool
 
-`Defang file and folder tool` is a small Rust CLI that defangs files by renaming them to include the hash of the file. I got lazy renaming the file and still keep track of what file was while I working on revese enging malware. This tool is 90% AI made, I just need the tool to work. 
+`Defang file and folder tool` is a small Rust CLI that defangs files by renaming them to include the hash of the file. I got lazy about renaming files and kept track of which file I was working on while reverse-engineering malware. This tool is 90% AI made. I just need the tool to work. 
 
 The tool supports both single files and folders:
 
