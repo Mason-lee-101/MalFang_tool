@@ -6,12 +6,20 @@ const SHELL_ROOTS: [(&str, &str); 2] = [
     (r"HKCU\Software\Classes\*\shell", "file"),
     (r"HKCU\Software\Classes\Folder\shell", "folder"),
 ];
-const MENU_DEFAULT_KEY_NAME: &str = "HashRenameDefang";
-const MENU_OTHER_KEY_NAME: &str = "HashRenameDefangOther";
+const MENU_DEFAULT_KEY_NAME: &str = "MalFangToolDefang";
+const MENU_OTHER_KEY_NAME: &str = "MalFangToolDefangOther";
+const MENU_REFANG_KEY_NAME: &str = "MalFangToolRefang";
+const LEGACY_MENU_KEY_NAMES: [&str; 3] = [
+    "HashRenameDefang",
+    "HashRenameDefangOther",
+    "HashRenameUnfang",
+];
 
-pub(crate) fn defang_file(path: &Path, algorithm: crate::HashAlgorithm) -> io::Result<PathBuf> {
-    let hash = crate::compute_hash_hex(path, algorithm)?;
-    crate::rename_with_hash(path, &hash, " ")
+pub(crate) fn rename_file(path: &Path, operation: crate::RenameOperation) -> io::Result<PathBuf> {
+    match operation {
+        crate::RenameOperation::Defang(algorithm) => crate::defang_path(path, algorithm, " "),
+        crate::RenameOperation::Refang => crate::refang_path(path, " "),
+    }
 }
 
 pub(crate) fn install_context_menu() -> io::Result<()> {
@@ -22,6 +30,7 @@ pub(crate) fn install_context_menu() -> io::Result<()> {
         exe_path_display,
         crate::HashAlgorithm::Sha256.cli_name()
     );
+    let refang_command_value = format!("\"{}\" --refang \"%1\"", exe_path_display);
 
     for (shell_root, target_label) in SHELL_ROOTS {
         install_context_menu_for_root(
@@ -29,6 +38,7 @@ pub(crate) fn install_context_menu() -> io::Result<()> {
             target_label,
             &exe_path_display,
             &default_command_value,
+            &refang_command_value,
         )?;
     }
 
@@ -43,8 +53,14 @@ pub(crate) fn uninstall_context_menu() -> io::Result<()> {
     ] {
         let context_menu_default_key = format!(r"{shell_root}\{MENU_DEFAULT_KEY_NAME}");
         let context_menu_other_key = format!(r"{shell_root}\{MENU_OTHER_KEY_NAME}");
+        let context_menu_refang_key = format!(r"{shell_root}\{MENU_REFANG_KEY_NAME}");
+        delete_reg_key_if_exists(&context_menu_refang_key)?;
         delete_reg_key_if_exists(&context_menu_other_key)?;
         delete_reg_key_if_exists(&context_menu_default_key)?;
+        for legacy_key_name in LEGACY_MENU_KEY_NAMES {
+            let legacy_key = format!(r"{shell_root}\{legacy_key_name}");
+            delete_reg_key_if_exists(&legacy_key)?;
+        }
     }
 
     Ok(())
@@ -55,11 +71,15 @@ fn install_context_menu_for_root(
     target_label: &str,
     exe_path: &str,
     default_command_value: &str,
+    refang_command_value: &str,
 ) -> io::Result<()> {
     let context_menu_default_key = format!(r"{shell_root}\{MENU_DEFAULT_KEY_NAME}");
     let context_menu_default_command_key = format!(r"{context_menu_default_key}\command");
     let context_menu_other_key = format!(r"{shell_root}\{MENU_OTHER_KEY_NAME}");
+    let context_menu_refang_key = format!(r"{shell_root}\{MENU_REFANG_KEY_NAME}");
+    let context_menu_refang_command_key = format!(r"{context_menu_refang_key}\command");
 
+    delete_reg_key_if_exists(&context_menu_refang_key)?;
     delete_reg_key_if_exists(&context_menu_other_key)?;
     delete_reg_key_if_exists(&context_menu_default_key)?;
 
@@ -78,6 +98,23 @@ fn install_context_menu_for_root(
         &context_menu_default_command_key,
         default_command_value,
         &format!("set the command for the default {target_label} context menu"),
+    )?;
+
+    add_reg_default_value(
+        &context_menu_refang_key,
+        &format!("Refang {target_label}"),
+        &format!("create the refang {target_label} context menu label"),
+    )?;
+    add_reg_named_value(
+        &context_menu_refang_key,
+        "Icon",
+        exe_path,
+        &format!("set the icon for the refang {target_label} context menu"),
+    )?;
+    add_reg_default_value(
+        &context_menu_refang_command_key,
+        refang_command_value,
+        &format!("set the command for the refang {target_label} context menu"),
     )?;
 
     add_reg_named_value(
