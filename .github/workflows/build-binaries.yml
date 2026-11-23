@@ -39,9 +39,90 @@ jobs:
       - name: Build release binary
         run: cargo +stable build --release
 
+      - name: Calculate binary SHA-256
+        id: checksum
+        shell: python
+        env:
+          BINARY_PATH: ${{ matrix.path }}
+        run: |
+          import hashlib
+          import os
+          from pathlib import Path
+
+          binary = Path(os.environ["BINARY_PATH"])
+          digest = hashlib.sha256()
+          with binary.open("rb") as stream:
+              for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                  digest.update(chunk)
+          sha256 = digest.hexdigest()
+          print(f"SHA-256 ({binary.name}): {sha256}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"sha256={sha256}\n")
+
       - name: Upload binary artifact
+        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.path }}
           if-no-files-found: error
+
+      - name: Save hashes
+        shell: python
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          BINARY_SHA256: ${{ steps.checksum.outputs.sha256 }}
+          ZIP_SHA256: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          import json
+          import os
+          from pathlib import Path
+
+          platform = os.environ["PLATFORM"]
+          Path(f"hashes-{platform}.json").write_text(json.dumps({
+              "platform": platform,
+              "binary": os.environ["BINARY_SHA256"],
+              "zip": os.environ["ZIP_SHA256"],
+          }), encoding="utf-8")
+
+      - name: Upload hash metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-${{ matrix.platform }}
+          path: hashes-${{ matrix.platform }}.json
+          if-no-files-found: error
+
+  hashes:
+    name: SHA-256 hashes
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download hash metadata
+        uses: actions/download-artifact@v4
+        with:
+          pattern: hashes-*
+          merge-multiple: true
+          path: hashes
+
+      - name: Publish hash summary
+        shell: python
+        run: |
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          lines = ["## Sha256 hashes", ""]
+          for platform in ["Windows", "Linux"]:
+              data = json.loads(Path(f"hashes/hashes-{platform}.json").read_text(encoding="utf-8"))
+              for kind in ["binary", "zip"]:
+                  digest = data[kind]
+                  if not re.fullmatch(r"[0-9a-fA-F]{64}", digest):
+                      raise ValueError(f"Invalid {platform} {kind} SHA-256: {digest!r}")
+                  label = "Sha256" if platform == "Linux" and kind == "binary" else "sha256"
+                  lines.append(f"{platform} {kind} {label} `{digest}`")
+                  lines.append("")
+          summary = "\n".join(lines)
+          print(summary)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
+              output.write(summary)
