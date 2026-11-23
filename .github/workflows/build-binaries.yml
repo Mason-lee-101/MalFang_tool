@@ -19,7 +19,7 @@ jobs:
           - platform: Linux
             runner: ubuntu-22.04
             artifact: MalFang_tool-linux-x86_64
-            path: MalFang_tool-linux-x86_64.tar.gz
+            path: target/release/MalFang_tool
           - platform: Windows
             runner: windows-2022
             artifact: MalFang_tool-windows-x86_64
@@ -38,10 +38,6 @@ jobs:
 
       - name: Build release binary
         run: cargo +stable build --release
-
-      - name: Package Linux binary
-        if: runner.os == 'Linux'
-        run: tar -czf MalFang_tool-linux-x86_64.tar.gz -C target/release MalFang_tool
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
