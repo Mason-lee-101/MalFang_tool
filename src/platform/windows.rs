@@ -2,6 +2,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::rename::{self, HashAlgorithm, RenameOperation};
+
 const SHELL_ROOTS: [(&str, &str); 2] = [
     (r"HKCU\Software\Classes\*\shell", "file"),
     (r"HKCU\Software\Classes\Folder\shell", "folder"),
@@ -15,24 +17,30 @@ const LEGACY_MENU_KEY_NAMES: [&str; 3] = [
     "HashRenameUnfang",
 ];
 
-pub(crate) fn rename_file(path: &Path, operation: crate::RenameOperation) -> io::Result<PathBuf> {
+pub(crate) fn rename_file(path: &Path, operation: RenameOperation) -> io::Result<PathBuf> {
     match operation {
-        crate::RenameOperation::Defang(algorithm) => crate::defang_path(path, algorithm, " "),
-        crate::RenameOperation::Refang => crate::refang_path(path, " "),
+        RenameOperation::Defang(algorithm) => rename::defang_path(path, algorithm, " "),
+        RenameOperation::Refang(algorithm) => rename::refang_path(path, algorithm, " "),
     }
 }
 
-pub(crate) fn install_context_menu() -> io::Result<()> {
-    let exe_path = std::env::current_exe()?;
+pub(crate) fn install_context_menu(exe_path: &Path) -> io::Result<()> {
+    install_context_menu_at_roots(exe_path, &SHELL_ROOTS)
+}
+
+pub(crate) fn install_context_menu_at_roots(
+    exe_path: &Path,
+    roots: &[(&str, &str)],
+) -> io::Result<()> {
     let exe_path_display = exe_path.display().to_string();
     let default_command_value = format!(
         "\"{}\" --hash {} \"%1\"",
         exe_path_display,
-        crate::HashAlgorithm::Sha256.cli_name()
+        HashAlgorithm::Sha256.cli_name()
     );
     let refang_command_value = format!("\"{}\" --refang \"%1\"", exe_path_display);
 
-    for (shell_root, target_label) in SHELL_ROOTS {
+    for &(shell_root, target_label) in roots {
         install_context_menu_for_root(
             shell_root,
             target_label,
@@ -46,23 +54,39 @@ pub(crate) fn install_context_menu() -> io::Result<()> {
 }
 
 pub(crate) fn uninstall_context_menu() -> io::Result<()> {
-    for shell_root in [
+    uninstall_context_menu_at_roots(&[
         r"HKCU\Software\Classes\*\shell",
         r"HKCU\Software\Classes\SystemFileAssociations\*\shell",
         r"HKCU\Software\Classes\Folder\shell",
-    ] {
-        let context_menu_default_key = format!(r"{shell_root}\{MENU_DEFAULT_KEY_NAME}");
-        let context_menu_other_key = format!(r"{shell_root}\{MENU_OTHER_KEY_NAME}");
-        let context_menu_refang_key = format!(r"{shell_root}\{MENU_REFANG_KEY_NAME}");
-        delete_reg_key_if_exists(&context_menu_refang_key)?;
-        delete_reg_key_if_exists(&context_menu_other_key)?;
-        delete_reg_key_if_exists(&context_menu_default_key)?;
-        for legacy_key_name in LEGACY_MENU_KEY_NAMES {
-            let legacy_key = format!(r"{shell_root}\{legacy_key_name}");
-            delete_reg_key_if_exists(&legacy_key)?;
+    ])
+}
+
+pub(crate) fn uninstall_context_menu_at_roots(roots: &[&str]) -> io::Result<()> {
+    let mut total_removed = 0;
+    for shell_root in roots {
+        println!("Checking registry: {shell_root}");
+        let mut removed = 0;
+        for name in [
+            MENU_REFANG_KEY_NAME,
+            MENU_OTHER_KEY_NAME,
+            MENU_DEFAULT_KEY_NAME,
+        ]
+        .into_iter()
+        .chain(LEGACY_MENU_KEY_NAMES)
+        {
+            let key = format!(r"{shell_root}\{name}");
+            if delete_reg_key_if_exists(&key)? {
+                println!("  Removed {key}");
+                removed += 1;
+            }
         }
+        if removed == 0 {
+            println!("  No MalFang registry keys removed.");
+        }
+        total_removed += removed;
     }
 
+    println!("Context-menu uninstall complete: removed {total_removed} MalFang registry key(s).");
     Ok(())
 }
 
@@ -79,9 +103,13 @@ fn install_context_menu_for_root(
     let context_menu_refang_key = format!(r"{shell_root}\{MENU_REFANG_KEY_NAME}");
     let context_menu_refang_command_key = format!(r"{context_menu_refang_key}\command");
 
-    delete_reg_key_if_exists(&context_menu_refang_key)?;
-    delete_reg_key_if_exists(&context_menu_other_key)?;
-    delete_reg_key_if_exists(&context_menu_default_key)?;
+    for key in [
+        &context_menu_refang_key,
+        &context_menu_other_key,
+        &context_menu_default_key,
+    ] {
+        delete_reg_key_if_exists(key)?;
+    }
 
     add_reg_default_value(
         &context_menu_default_key,
@@ -137,10 +165,10 @@ fn install_context_menu_for_root(
     )?;
 
     for algorithm in [
-        crate::HashAlgorithm::Md5,
-        crate::HashAlgorithm::Sha1,
-        crate::HashAlgorithm::Sha512,
-        crate::HashAlgorithm::Blake3,
+        HashAlgorithm::Md5,
+        HashAlgorithm::Sha1,
+        HashAlgorithm::Sha512,
+        HashAlgorithm::Blake3,
     ] {
         let sub_key = format!(r"{context_menu_other_key}\shell\{}", algorithm.cli_name());
         let sub_command_key = format!(r"{sub_key}\command");
@@ -165,6 +193,7 @@ fn install_context_menu_for_root(
         )?;
     }
 
+    println!("Installed {target_label} context menu: {shell_root}");
     Ok(())
 }
 
@@ -219,14 +248,15 @@ fn run_reg_command(args: &[String], context: &str) -> io::Result<()> {
     }
 }
 
-fn delete_reg_key_if_exists(key: &str) -> io::Result<()> {
+fn delete_reg_key_if_exists(key: &str) -> io::Result<bool> {
     let query_output = Command::new("reg").args(["query", key]).output()?;
     if !query_output.status.success() {
-        return Ok(());
+        return Ok(false);
     }
 
     run_reg_command(
         &["delete".to_string(), key.to_string(), "/f".to_string()],
         &format!("delete the registry key {key}"),
-    )
+    )?;
+    Ok(true)
 }

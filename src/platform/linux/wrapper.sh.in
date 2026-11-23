@@ -1,0 +1,25 @@
+#!/bin/sh
+# Managed by MalFang_tool
+set -efu
+
+{selection_fallback}[ "$#" -gt 0 ] || exit 0
+
+count=0
+failed=0
+for item in "$@"; do
+    if {exe_path} {command_args} -- "$item"; then
+        count=$((count + 1))
+    else
+        failed=$((failed + 1))
+    fi
+done
+
+if command -v notify-send >/dev/null 2>&1; then
+    if [ "$failed" -eq 0 ]; then
+        notify-send "MalFang_tool" "{success_message}" || :
+    else
+        notify-send "MalFang_tool" "Processed $count item(s); $failed failed." || :
+    fi
+fi
+
+[ "$failed" -eq 0 ]

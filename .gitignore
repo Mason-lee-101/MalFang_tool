@@ -1,1 +1,12 @@
-/target
+# Cargo build output
+/target/
+
+# Local wrapper design notes
+/src/linux-wrapper.txt
+
+# Editor and OS artifacts
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

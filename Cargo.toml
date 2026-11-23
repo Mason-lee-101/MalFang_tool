@@ -13,3 +13,7 @@ sha1 = "0.10"
 md-5 = "0.10"
 blake3 = "1.5"
 clap = { version = "4.5", features = ["derive"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+roxmltree = "0.21"
+tempfile = "3"

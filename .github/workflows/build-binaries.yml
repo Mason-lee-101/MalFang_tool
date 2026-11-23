@@ -1,0 +1,51 @@
+name: Build binaries
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }} x86_64
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Linux
+            runner: ubuntu-22.04
+            artifact: MalFang_tool-linux-x86_64
+            path: MalFang_tool-linux-x86_64.tar.gz
+          - platform: Windows
+            runner: windows-2022
+            artifact: MalFang_tool-windows-x86_64
+            path: target/release/MalFang_tool.exe
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Run tests
+        run: cargo +stable test --release --locked -- --test-threads=1
+
+      - name: Build release binary
+        run: cargo +stable build --release --locked
+
+      - name: Package Linux binary
+        if: runner.os == 'Linux'
+        run: tar -czf MalFang_tool-linux-x86_64.tar.gz -C target/release MalFang_tool
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.path }}
+          if-no-files-found: error
