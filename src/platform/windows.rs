@@ -19,8 +19,8 @@ const LEGACY_MENU_KEY_NAMES: [&str; 3] = [
 
 pub(crate) fn rename_file(path: &Path, operation: RenameOperation) -> io::Result<PathBuf> {
     match operation {
-        RenameOperation::Defang(algorithm) => rename::defang_path(path, algorithm, " "),
-        RenameOperation::Refang(algorithm) => rename::refang_path(path, algorithm, " "),
+        RenameOperation::Defang(algorithm) => rename::defang_path(path, algorithm, "_"),
+        RenameOperation::Refang(algorithm) => rename::refang_path(path, algorithm, "_"),
     }
 }
 
@@ -33,11 +33,7 @@ pub(crate) fn install_context_menu_at_roots(
     roots: &[(&str, &str)],
 ) -> io::Result<()> {
     let exe_path_display = exe_path.display().to_string();
-    let default_command_value = format!(
-        "\"{}\" --hash {} \"%1\"",
-        exe_path_display,
-        HashAlgorithm::Sha256.cli_name()
-    );
+    let default_command_value = format!("\"{}\" \"%1\"", exe_path_display);
     let refang_command_value = format!("\"{}\" --refang \"%1\"", exe_path_display);
 
     for &(shell_root, target_label) in roots {

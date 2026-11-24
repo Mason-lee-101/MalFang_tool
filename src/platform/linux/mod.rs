@@ -61,7 +61,10 @@ impl FileManager {
     }
 
     fn uses_scripts_menu(self) -> bool {
-        matches!(self, Self::Nautilus | Self::Nemo | Self::Caja | Self::Xfe | Self::Ding)
+        matches!(
+            self,
+            Self::Nautilus | Self::Nemo | Self::Caja | Self::Xfe | Self::Ding
+        )
     }
 
     fn registration_path(self) -> io::Result<PathBuf> {
@@ -140,7 +143,10 @@ fn ding_installed() -> bool {
         .into_iter()
         .chain(env::split_paths(&data_dirs))
         .filter(|dir| dir.is_absolute())
-        .any(|dir| dir.join("gnome-shell/extensions/ding@rastersoft.com/metadata.json").is_file())
+        .any(|dir| {
+            dir.join("gnome-shell/extensions/ding@rastersoft.com/metadata.json")
+                .is_file()
+        })
 }
 
 const SCRIPT_ENTRIES: [ScriptEntry; 6] = [
@@ -155,12 +161,12 @@ const SCRIPT_ENTRIES: [ScriptEntry; 6] = [
 pub(crate) fn rename_file(path: &Path, operation: RenameOperation) -> io::Result<PathBuf> {
     match operation {
         RenameOperation::Defang(algorithm) => {
-            let new_path = rename::defang_path(path, algorithm, " ")?;
+            let new_path = rename::defang_path(path, algorithm, "_")?;
             strip_execute_bits(&new_path)?;
             Ok(new_path)
         }
         RenameOperation::Refang(algorithm) => {
-            let new_path = rename::refang_path(path, algorithm, " ")?;
+            let new_path = rename::refang_path(path, algorithm, "_")?;
             add_execute_bits(&new_path)?;
             Ok(new_path)
         }
@@ -219,7 +225,11 @@ pub(crate) fn uninstall_context_menu(target: Option<FileManager>) -> io::Result<
     for &manager in managers(&target) {
         let registration = manager.registration_path()?;
         if !checked.insert(registration.clone()) {
-            println!("{}: already checked shared path {}", manager.name(), registration.display());
+            println!(
+                "{}: already checked shared path {}",
+                manager.name(),
+                registration.display()
+            );
             continue;
         }
         println!("{}: checking {}", manager.name(), registration.display());
@@ -236,7 +246,9 @@ pub(crate) fn uninstall_context_menu(target: Option<FileManager>) -> io::Result<
                 }
                 count
             }
-            FileManager::Dolphin | FileManager::Pcmanfm => actions::uninstall(manager, &registration)?,
+            FileManager::Dolphin | FileManager::Pcmanfm => {
+                actions::uninstall(manager, &registration)?
+            }
             _ => 0,
         };
         let wrappers = manager.wrappers_dir(&registration)?;
@@ -248,7 +260,9 @@ pub(crate) fn uninstall_context_menu(target: Option<FileManager>) -> io::Result<
         }
         total_removed += removed;
     }
-    println!("Context-menu uninstall complete: removed {total_removed} managed file(s) or action(s).");
+    println!(
+        "Context-menu uninstall complete: removed {total_removed} managed file(s) or action(s)."
+    );
     if refresh_xfce {
         refresh::offer_xfce_refresh(env::var_os("PATH").as_deref());
     }
@@ -263,7 +277,10 @@ fn managers(target: &Option<FileManager>) -> &[FileManager] {
 }
 
 fn xdg_home(var: &str, fallback: &str) -> io::Result<PathBuf> {
-    match env::var_os(var).map(PathBuf::from).filter(|p| p.is_absolute()) {
+    match env::var_os(var)
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+    {
         Some(path) => Ok(path),
         None => Ok(home_dir()?.join(fallback)),
     }
@@ -328,12 +345,16 @@ fn add_execute_bits(path: &Path) -> io::Result<()> {
 
 fn context_menu_script(exe_path: &str, manager: FileManager, entry: ScriptEntry) -> String {
     let (command_args, success_message) = match entry.operation {
+        RenameOperation::Defang(_) if entry.id == "defang" => (
+            String::new(),
+            "Defanged $count item(s).".to_string(),
+        ),
         RenameOperation::Defang(algorithm) => (
             format!("--hash {}", algorithm.cli_name()),
             format!("Defanged $count item(s) with {}.", algorithm.label()),
         ),
-        RenameOperation::Refang(algorithm) => (
-            format!("--refang --hash {}", algorithm.cli_name()),
+        RenameOperation::Refang(_) => (
+            "--refang".to_string(),
             "Refanged $count item(s).".to_string(),
         ),
     };
@@ -374,7 +395,8 @@ fn install_managed_file(path: &Path, contents: &str, mode: u32) -> io::Result<()
 }
 
 fn remove_managed_file(path: &Path) -> io::Result<usize> {
-    let with_path = |err: io::Error| io::Error::new(err.kind(), format!("{}: {err}", path.display()));
+    let with_path =
+        |err: io::Error| io::Error::new(err.kind(), format!("{}: {err}", path.display()));
     match managed_file_state(path).map_err(with_path)? {
         ManagedFile::Owned => match fs::remove_file(path) {
             Ok(()) => {
@@ -385,7 +407,10 @@ fn remove_managed_file(path: &Path) -> io::Result<usize> {
             Err(err) => Err(with_path(err)),
         },
         ManagedFile::Unrelated => {
-            println!("  Kept {} (not recognized as MalFang-managed)", path.display());
+            println!(
+                "  Kept {} (not recognized as MalFang-managed)",
+                path.display()
+            );
             Ok(0)
         }
         ManagedFile::Missing => Ok(0),
@@ -397,7 +422,8 @@ fn atomic_write(path: &Path, contents: &str, mode: u32) -> io::Result<()> {
     fs::create_dir_all(parent)?;
     let mut temp = tempfile::NamedTempFile::new_in(parent)?;
     temp.write_all(contents.as_bytes())?;
-    temp.as_file().set_permissions(fs::Permissions::from_mode(mode))?;
+    temp.as_file()
+        .set_permissions(fs::Permissions::from_mode(mode))?;
     temp.persist(path)?;
     Ok(())
 }
@@ -427,9 +453,8 @@ fn managed_file_state(path: &Path) -> io::Result<ManagedFile> {
             .iter()
             .filter_map(|manager| manager.selection_var())
             .all(|var| contents.contains(var))
-        && contents.contains(
-            r#"notify-send "MalFang_tool" "Processed $count item(s); $failed failed.""#,
-        );
+        && contents
+            .contains(r#"notify-send "MalFang_tool" "Processed $count item(s); $failed failed.""#);
     if body.starts_with(MANAGED_MARKER) || legacy {
         Ok(ManagedFile::Owned)
     } else {

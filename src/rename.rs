@@ -7,7 +7,7 @@ use md5::Md5;
 use sha1::Sha1;
 use sha2::{Digest, Sha256, Sha512};
 
-#[derive(Clone, Copy, Debug, ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub(crate) enum HashAlgorithm {
     Md5,
     #[value(alias = "sha-1")]
@@ -171,11 +171,11 @@ fn hash_prefix_parts<'a>(
     hashes: &SupportedHashes,
     separator: &str,
 ) -> Option<(&'a str, &'a str)> {
-    let (candidate, rest) = file_name.split_once(separator)?;
-    if candidate.is_empty() || rest.is_empty() || !hashes.matches(candidate) {
-        return None;
-    }
-    Some((candidate, rest))
+    [separator, " "].into_iter().find_map(|delimiter| {
+        let (candidate, rest) = file_name.split_once(delimiter)?;
+        (!candidate.is_empty() && !rest.is_empty() && hashes.matches(candidate))
+            .then_some((candidate, rest))
+    })
 }
 
 fn hash_suffix_parts<'a>(
@@ -183,11 +183,11 @@ fn hash_suffix_parts<'a>(
     hashes: &SupportedHashes,
     separator: &str,
 ) -> Option<(&'a str, &'a str)> {
-    let (rest, candidate) = file_name.rsplit_once(separator)?;
-    if candidate.is_empty() || rest.is_empty() || !hashes.matches(candidate) {
-        return None;
-    }
-    Some((rest, candidate))
+    [separator, " "].into_iter().find_map(|delimiter| {
+        let (rest, candidate) = file_name.rsplit_once(delimiter)?;
+        (!candidate.is_empty() && !rest.is_empty() && hashes.matches(candidate))
+            .then_some((rest, candidate))
+    })
 }
 
 fn planned_defanged_name(
@@ -204,7 +204,9 @@ fn planned_defanged_name(
 
     let normalized_base_name = match hash_suffix_parts(base_name, hashes, separator) {
         Some((_, existing_hash))
-            if !had_prefix_hash && existing_hash.eq_ignore_ascii_case(selected_hash) =>
+            if !had_prefix_hash
+                && existing_hash.eq_ignore_ascii_case(selected_hash)
+                && base_name.ends_with(&format!("{separator}{existing_hash}")) =>
         {
             return None;
         }
@@ -221,8 +223,9 @@ fn planned_refanged_name(
     fallback_algorithm: HashAlgorithm,
     separator: &str,
 ) -> Option<String> {
-    if hash_prefix_parts(file_name, hashes, separator).is_some() {
-        return None;
+    if let Some((hash, base_name)) = hash_prefix_parts(file_name, hashes, separator) {
+        let normalized = format!("{hash}{separator}{base_name}");
+        return (normalized != file_name).then_some(normalized);
     }
 
     let (base_name, hash) = hash_suffix_parts(file_name, hashes, separator)
@@ -236,6 +239,44 @@ mod tests {
         hash_prefix_parts, hash_suffix_parts, planned_defanged_name, planned_refanged_name,
         HashAlgorithm, SupportedHashes,
     };
+
+    #[test]
+    fn underscores_normalize_legacy_names_and_preserve_filename_spaces() {
+        let hashes = SupportedHashes::from_bytes(b"sample");
+        let hash = hashes.get(HashAlgorithm::Md5);
+        let trailing = format!("invoice copy.exe_{hash}");
+        let leading = format!("{hash}_invoice copy.exe");
+        for input in [
+            "invoice copy.exe".to_string(),
+            format!("invoice copy.exe {hash}"),
+            format!("{hash} invoice copy.exe"),
+        ] {
+            assert_eq!(
+                planned_defanged_name(&input, &hashes, HashAlgorithm::Md5, "_"),
+                Some(trailing.clone())
+            );
+            assert_eq!(
+                planned_refanged_name(&input, &hashes, HashAlgorithm::Md5, "_"),
+                Some(leading.clone())
+            );
+        }
+        assert_eq!(
+            planned_defanged_name(&trailing, &hashes, HashAlgorithm::Md5, "_"),
+            None
+        );
+        assert_eq!(
+            planned_refanged_name(&leading, &hashes, HashAlgorithm::Md5, "_"),
+            None
+        );
+        assert_eq!(
+            planned_refanged_name(&trailing, &hashes, HashAlgorithm::Md5, "_"),
+            Some(leading.clone())
+        );
+        assert_eq!(
+            planned_defanged_name(&leading, &hashes, HashAlgorithm::Md5, "_"),
+            Some(trailing)
+        );
+    }
 
     #[test]
     fn defang_detection_matches_hash_at_end() {

@@ -93,7 +93,7 @@ fn registers_options_and_commands_and_reinstalls_cleanly() {
             assert!(query(&defang, None).contains(&format!("Defang {label}")));
             assert!(query(&defang, Some("Icon")).contains(&executable_text));
             assert!(query(&format!(r"{defang}\command"), None)
-                .contains(&format!("\"{executable_text}\" --hash sha256 \"%1\"")));
+                .contains(&format!("\"{executable_text}\" \"%1\"")));
 
             let refang = format!(r"{root}\MalFangToolRefang");
             assert!(query(&refang, None).contains(&format!("Refang {label}")));
