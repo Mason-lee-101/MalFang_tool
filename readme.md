@@ -23,13 +23,13 @@ Requires Rust and Cargo:
 cargo build --release
 ```
 
-Output: `target/release/MalFang_tool` (Linux) or `target\release\MalFang_tool.exe` (Windows).
+Output: `target/release/malfang_tool` (Linux) or `target\release\malfang_tool.exe` (Windows).
 
 ## Usage
 
 
 ```text
-Usage: MalFang_tool.exe [OPTIONS] [PATH]
+Usage: malfang_tool [OPTIONS] [PATH]
 
 Arguments:
   [PATH]
@@ -43,10 +43,10 @@ Options:
   -h, --help                      Print help
 
 Examples:
-  Defang: MalFang_tool sample.exe
+  Defang: malfang_tool sample.exe
           Renames to sample.exe_<hash>
 
-  Refang: MalFang_tool --refang "sample.exe_<hash>"
+  Refang: malfang_tool --refang "sample.exe_<hash>"
           Renames to <hash>_sample.exe
 ```
 
@@ -67,23 +67,23 @@ Run as your current user, **without `sudo`** on Linux. Choose one scope; omittin
 | `--uninstall path` | Remove binary and PATH setup; leave menus unchanged |
 
 ```bash
-MalFang_tool --install
-MalFang_tool --uninstall
+malfang_tool --install
+malfang_tool --uninstall
 
 # Linux: explicitly target a file manager or desktop
-MalFang_tool --install menus --file-manager dolphin
-MalFang_tool --install menus --file-manager xfdesktop
-MalFang_tool --uninstall menus --file-manager dolphin
+malfang_tool --install menus --file-manager dolphin
+malfang_tool --install menus --file-manager xfdesktop
+malfang_tool --uninstall menus --file-manager dolphin
 ```
 
 **Prefer full uninstall if menus are installed:** removing only `path` can leave broken menu entries. Uninstall preserves your samples and unrelated menu entries; it does not undo renamed files. Windows schedules deletion of the running installed binary after exit.
 
 Installed binary locations:
 
-- Windows: `%LOCALAPPDATA%\Programs\MalFang_tool\MalFang_tool.exe`
-- Linux: `~/.local/bin/MalFang_tool`
+- Windows: `%LOCALAPPDATA%\Programs\MalFang_tool\malfang_tool.exe`
+- Linux: `~/.local/bin/malfang_tool`
 
-Menus use the installed copy, so the original can be moved or deleted. Re-run installation from a newer executable to update it; close running installed instances first. Open a new terminal after PATH changes. Linux PATH setup uses `~/.profile`, `~/.bashrc`, and `~/.zshrc`.
+Menus use the installed copy, so the original can be moved or deleted. Re-run installation from a newer executable to update it; close running installed instances first. Linux PATH setup uses `~/.profile`, `~/.bashrc`, and `~/.zshrc`. After interactive installation with PATH setup, a `[y/N]` prompt offers to start a refreshed shell immediately (default: no). Exiting that shell returns to the original shell with its old PATH; a program cannot update its parent shell. Non-interactive installs never prompt. Otherwise, open a new terminal after PATH changes.
 
 ## Context menus
 

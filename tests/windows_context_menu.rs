@@ -174,7 +174,7 @@ fn optional_binary_install_copies_and_handles_running_from_installed_location() 
     let sandbox = Sandbox::new();
     let destination = sandbox
         .directory
-        .join("Programs/MalFang_tool/MalFang_tool.exe");
+        .join("Programs/MalFang_tool/malfang_tool.exe");
     // The test executable is a stand-in payload; this doesn't register any menus.
     for program in [std::env::current_exe().unwrap(), destination.clone()] {
         success(

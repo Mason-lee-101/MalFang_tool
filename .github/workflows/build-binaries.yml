@@ -18,12 +18,12 @@ jobs:
         include:
           - platform: Linux
             runner: ubuntu-22.04
-            artifact: MalFang_tool-linux-x86_64
-            path: target/release/MalFang_tool
+            artifact: malfang_tool-linux-x86_64
+            path: target/release/malfang_tool
           - platform: Windows
             runner: windows-2022
-            artifact: MalFang_tool-windows-x86_64
-            path: target/release/MalFang_tool.exe
+            artifact: malfang_tool-windows-x86_64
+            path: target/release/malfang_tool.exe
 
     steps:
       - uses: actions/checkout@v4

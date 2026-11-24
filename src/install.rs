@@ -19,6 +19,45 @@ pub(crate) fn add_to_user_path(executable: &Path) -> io::Result<()> {
     Ok(())
 }
 
+/// A child cannot change its parent shell's environment. Offer a new interactive
+/// shell instead, with PATH refreshed explicitly (including shells without rc files).
+#[cfg(target_os = "linux")]
+pub(crate) fn offer_shell_refresh(executable: &Path) -> io::Result<()> {
+    use std::io::{IsTerminal, Write};
+    use std::os::unix::process::CommandExt;
+
+    if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
+        return Ok(());
+    }
+    print!("Start a refreshed shell to use malfang_tool now? [y/N] ");
+    io::stdout().flush()?;
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer)?;
+    if !matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
+        println!("Open a new terminal when ready to use the updated PATH.");
+        return Ok(());
+    }
+
+    let directory = executable.parent().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidInput, "Executable has no parent directory")
+    })?;
+    let mut paths: Vec<PathBuf> = env::split_paths(&env::var_os("PATH").unwrap_or_default()).collect();
+    if !paths.iter().any(|path| path == directory) {
+        paths.push(directory.to_path_buf());
+    }
+    let path = env::join_paths(paths)
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+    let shell = env::var_os("SHELL")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .unwrap_or_else(|| PathBuf::from("/bin/sh"));
+    println!("Starting a refreshed shell. Exiting it returns to your original shell.");
+    Err(std::process::Command::new(shell)
+        .arg("-i")
+        .env("PATH", path)
+        .exec())
+}
+
 #[cfg(target_os = "linux")]
 fn persist_user_path(directory: &Path, remove: bool) -> io::Result<()> {
     use std::io::Write;
@@ -123,9 +162,9 @@ pub(crate) fn context_menu_executable(install_binary: bool) -> io::Result<PathBu
 
 fn installed_executable() -> io::Result<PathBuf> {
     #[cfg(target_os = "linux")]
-    let (variable, relative) = ("HOME", ".local/bin/MalFang_tool");
+    let (variable, relative) = ("HOME", ".local/bin/malfang_tool");
     #[cfg(target_os = "windows")]
-    let (variable, relative) = ("LOCALAPPDATA", "Programs/MalFang_tool/MalFang_tool.exe");
+    let (variable, relative) = ("LOCALAPPDATA", "Programs/MalFang_tool/malfang_tool.exe");
 
     let base = env::var_os(variable)
         .map(PathBuf::from)

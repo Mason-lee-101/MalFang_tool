@@ -34,7 +34,7 @@ impl TestHome {
     }
 
     fn cli(&self) -> Command {
-        self.command(env!("CARGO_BIN_EXE_MalFang_tool"))
+        self.command(env!("CARGO_BIN_EXE_malfang_tool"))
     }
 }
 
@@ -67,11 +67,15 @@ fn optional_binary_install_uses_a_stable_copy() {
             .output()
             .unwrap(),
     );
-    let installed = home.0.join(".local/bin/MalFang_tool");
+    let installed = home.0.join(".local/bin/malfang_tool");
     assert!(installed.is_file());
     assert!(!home.0.join(".profile").exists());
     assert_success(home.command(&installed).args(["--install", "path"]).output().unwrap());
     let profile = fs::read_to_string(home.0.join(".profile")).unwrap();
+    // Piped/non-interactive installs must not prompt or launch a shell.
+    let output = home.cli().args(["--install", "path"]).output().unwrap();
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("[y/N]"));
+    assert_success(output);
     assert!(profile.contains(home.0.join(".local/bin").to_str().unwrap()));
     let shell = home.command("/bin/sh")
         .args(["-c", ". \"$HOME/.profile\"; . \"$HOME/.profile\"; printf '%s' \"$PATH\""])
@@ -112,7 +116,7 @@ fn full_uninstall_removes_installation_and_preserves_user_configuration() {
     let profile = home.0.join(".profile");
     fs::write(&profile, "# User configuration\nexport KEEP_ME=yes\n").unwrap();
     assert_success(home.cli().args(["--install", "path"]).output().unwrap());
-    let installed = home.0.join(".local/bin/MalFang_tool");
+    let installed = home.0.join(".local/bin/malfang_tool");
     let other = home.0.join(".local/bin/other-tool");
     fs::write(&other, "keep").unwrap();
     assert_success(home.command(&installed).arg("--uninstall").output().unwrap());
@@ -225,7 +229,7 @@ fn desktop_providers_are_detected_and_can_be_targeted_by_name() {
 fn wrappers_preserve_literal_paths_and_use_only_their_managers_selection() {
     let home = TestHome::new();
     let executable = home.0.join("MalFang's copy");
-    fs::copy(env!("CARGO_BIN_EXE_MalFang_tool"), &executable).unwrap();
+    fs::copy(env!("CARGO_BIN_EXE_malfang_tool"), &executable).unwrap();
     for (manager, scripts_dir, selection_var) in [
         (
             "nautilus",

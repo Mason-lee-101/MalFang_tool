@@ -45,6 +45,10 @@ fn run(args: Args) -> io::Result<()> {
             platform::install_context_menu(&executable)?;
             println!("Context menu installed.");
         }
+        #[cfg(target_os = "linux")]
+        if scope.includes_path() {
+            install::offer_shell_refresh(&executable)?;
+        }
         return Ok(());
     }
 
@@ -142,9 +146,9 @@ impl InstallScope {
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "MalFang_tool",
+    name = "malfang_tool",
     about = "Defang files with trailing hashes or refang them with leading hashes",
-    after_help = "Examples:\n  Defang: MalFang_tool sample.exe\n          Renames to sample.exe_<hash>\n\n  Refang: MalFang_tool --refang \"sample.exe_<hash>\"\n          Renames to <hash>_sample.exe",
+    after_help = "Examples:\n  Defang: malfang_tool sample.exe\n          Renames to sample.exe_<hash>\n\n  Refang: malfang_tool --refang \"sample.exe_<hash>\"\n          Renames to <hash>_sample.exe",
     arg_required_else_help = true
 )]
 struct Args {
