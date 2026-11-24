@@ -17,13 +17,18 @@ Refang: sample.exe_<hash> -> <hash>_sample.exe
 
 ## Build
 
-Requires Rust and Cargo:
+Requires Rust and Cargo. Linux release builds use **x86_64 musl** for a statically linked binary without a glibc dependency:
 
 ```bash
-cargo build --release
+# Linux (Debian/Ubuntu): install the musl compiler
+sudo apt-get update && sudo apt-get install -y musl-tools
+rustup target add x86_64-unknown-linux-musl
+cargo build --release --target x86_64-unknown-linux-musl
 ```
 
-Output: `target/release/malfang_tool` (Linux) or `target\release\malfang_tool.exe` (Windows).
+Linux output: `target/x86_64-unknown-linux-musl/release/malfang_tool`.
+
+On Windows, use `cargo build --release` (output: `target\release\malfang_tool.exe`). CI builds both platforms with explicit targets; its Windows output is under `target/x86_64-pc-windows-msvc/release/`.
 
 ## Usage
 
@@ -37,7 +42,7 @@ Arguments:
 Options:
   -a, --hash <ALGORITHM>          Override the saved default for this command (fallback: sha256) [possible values: md5, sha1, sha256, sha512, blake3]
       --default-hash <ALGORITHM>  Save the default algorithm for CLI and default menu actions [possible values: md5, sha1, sha256, sha512, blake3]
-      --refang
+  -r, --refang
       --install [<SCOPE>]         Install everything (default), binary + user PATH, or menus + binary without PATH [possible values: all, path, menus]
       --uninstall [<SCOPE>]       Remove everything (default), binary + user PATH, or only menus [possible values: all, path, menus]
   -h, --help                      Print help

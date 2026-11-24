@@ -18,12 +18,14 @@ jobs:
         include:
           - platform: Linux
             runner: ubuntu-22.04
-            artifact: malfang_tool-linux-x86_64
-            path: target/release/malfang_tool
+            artifact: malfang_tool-linux-x86_64-musl
+            target: x86_64-unknown-linux-musl
+            path: target/x86_64-unknown-linux-musl/release/malfang_tool
           - platform: Windows
             runner: windows-2022
             artifact: malfang_tool-windows-x86_64
-            path: target/release/malfang_tool.exe
+            target: x86_64-pc-windows-msvc
+            path: target/x86_64-pc-windows-msvc/release/malfang_tool.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -31,13 +33,17 @@ jobs:
           persist-credentials: false
 
       - name: Install stable Rust
-        run: rustup toolchain install stable --profile minimal
+        run: rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+
+      - name: Install musl toolchain
+        if: matrix.platform == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Run tests
-        run: cargo +stable test --release -- --test-threads=1
+        run: cargo +stable test --release --target ${{ matrix.target }} -- --test-threads=1
 
       - name: Build release binary
-        run: cargo +stable build --release
+        run: cargo +stable build --release --target ${{ matrix.target }}
 
       - name: Calculate binary SHA-256
         id: checksum

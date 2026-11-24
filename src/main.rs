@@ -161,6 +161,7 @@ struct Args {
     default_hash: Option<HashAlgorithm>,
 
     #[arg(
+        short = 'r',
         long = "refang",
         action = ArgAction::SetTrue,
         conflicts_with_all = ["install", "uninstall"]
@@ -196,6 +197,18 @@ struct Args {
 #[cfg(test)]
 mod cli_tests {
     use super::*;
+
+    #[test]
+    fn refang_accepts_short_and_long_flags() {
+        for flag in ["-r", "--refang"] {
+            let args = Args::try_parse_from(["malfang_tool", flag, "sample.exe"]).unwrap();
+            assert!(args.refang);
+            assert_eq!(args.path, Some(PathBuf::from("sample.exe")));
+            for operation in ["--install", "--uninstall", "--default-hash=md5"] {
+                assert!(Args::try_parse_from(["malfang_tool", flag, operation]).is_err());
+            }
+        }
+    }
 
     #[test]
     fn saved_default_command_is_standalone() {
